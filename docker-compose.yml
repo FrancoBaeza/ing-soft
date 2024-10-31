@@ -1,0 +1,130 @@
+services:
+  api-gateway:
+    image: francobaezagraf/ec-api-gateway:latest
+    ports: 
+      - 5000:3000
+    networks:
+      - ecommerce-network
+    environment:
+      - PORT=3000
+      - KAFKA_SERVERS=kafka:9092
+
+  ############### ORDERS MS ###############  
+
+  orders-ms:
+    image: francobaezagraf/ec-orders-ms:latest
+    environment:
+      - KAFKA_SERVERS=kafka:9092
+    networks:
+      - ecommerce-network
+    depends_on:
+      orders-db:
+        condition: service_healthy
+
+  orders-db:
+    image: mariadb:latest
+    container_name: orders-db
+    environment:
+      MYSQL_ROOT_PASSWORD: 123123
+      MYSQL_DATABASE: orders-db
+      MYSQL_USER: user
+      MYSQL_PASSWORD: 123123
+    ports:
+      - "3309:3306"
+    volumes:
+      - ./db/orders-db:/var/lib/mysql:Z
+    networks:
+      - ecommerce-network
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --bind-address=0.0.0.0
+    healthcheck:
+      test: [ "CMD", "healthcheck.sh", "--su-mysql", "--connect", "--innodb_initialized" ]
+      interval: 5s
+      timeout: 10s
+      retries: 15
+    
+
+  ############### END ORDERS MS ###############  
+
+  ############### PRODUCTS MS ###############  
+
+  products-ms:
+    image: francobaezagraf/ec-products-ms:latest
+    environment:
+      - KAFKA_SERVERS=kafka:9092
+    networks:
+      - ecommerce-network
+    depends_on:
+      products-db:
+        condition: service_healthy
+
+  products-db:
+    image: mariadb:latest
+    container_name: products-db
+    environment:
+      MYSQL_ROOT_PASSWORD: 123123
+      MYSQL_DATABASE: products-db
+      MYSQL_USER: user
+      MYSQL_PASSWORD: 123123
+    ports:
+      - "3310:3306"
+    volumes:
+      - ./db/products-db:/var/lib/mysql:Z
+    networks:
+      - ecommerce-network
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+      --bind-address=0.0.0.0
+    healthcheck:
+      test: [ "CMD", "healthcheck.sh", "--su-mysql", "--connect", "--innodb_initialized" ]
+      interval: 5s
+      timeout: 10s
+      retries: 15
+    
+
+  ############### END PRODUCTS MS ###############  
+
+
+  notifications-ms:
+    image: francobaezagraf/ec-notifications-ms:latest
+    networks:
+      - ecommerce-network
+    environment:
+      - KAFKA_SERVERS=kafka:9092
+      - EMAIL_SENDER=pase2face@gmail.com
+      - EMAIL_PASSWORD=dblzyjtjdpsjcjnj
+      - EMAIL_HOST=smtp.gmail.com
+
+  zookeeper:
+    image: bitnami/zookeeper:latest
+    container_name: zookeeper
+    networks:
+      - ecommerce-network
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: bitnami/kafka:latest
+    container_name: kafka
+    networks:
+      - ecommerce-network
+    environment:
+      - KAFKA_BROKER_ID=1
+      - KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181
+      - ALLOW_PLAINTEXT_LISTENER=yes
+      - KAFKA_LISTENERS=PLAINTEXT://:9092
+      - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
+      - KAFKA_AUTO_CREATE_TOPICS_ENABLE=true
+    ports:
+      - "9092:9092"
+    depends_on:
+      - zookeeper
+
+networks:
+  ecommerce-network:
+    driver: bridge
